@@ -14,9 +14,6 @@ const db = knex({
   }
 });
 
-db.select('*').from('users').then(data => {
-  console.log(data);
-});
 
 const app = express();
 
@@ -28,29 +25,50 @@ app.get('/', (req, res) => {
 })
 
 app.post('/signin', (req, res) => {
-  // bcrypt.compare("apples", null, null, function(err, hash) {
-  //   console.log(hash)
-  //  });
-  if (req.body.email === database.users[0].email
-    && req.body.password === database.users[0].password) {
-    res.json(database.users[0]);
+  db.select('email', 'hash').from('login')
+    .where('email', '=', req.body.email)
+    .then(data => {
+      const isValid = bcrypt.compareSync(req.body.password, data[0].hash)
+      if (isValid) {
+        return db.select('*').from('users')
+          .where('email', '=', req.body.email)
+          .then(user => {
+            res.json(user[0])
+          })
+          .catch(err => res.status(400).json('unable to get user'))
+      } else {
+        res.status(400).json('wrong credentions')
+      }
 
-  } else {
-    res.status(400).json('error loggin in')
-  }
-
+    })
+    .catch(err => res.status(400).json('wrong credentions'))
 })
-
 
 app.post('/register', (req, res) => {
   const { email, name, password } = req.body;
-  db('users')
-    .returning('*')
-    .insert({
-      email, name, joined: new Date()
-    }).then(user => {
-      res.json(user[0])
-    }).catch(err => res.status(400).json('unable to register'))
+  const hash = bcrypt.hashSync(password)
+  db.transaction(trx => {
+    trx.insert({
+      hash,
+      email
+    })
+      .into('login')
+      .returning('email')
+      .then(loginEmail => {
+        return trx('users')
+          .returning('*')
+          .insert({
+            email: loginEmail[0],
+            name,
+            joined: new Date()
+          })
+          .then(user => {
+            res.json(user[0])
+          })
+      })
+      .then(trx.commit)
+      .catch(trx.rollback)
+  })
 });
 
 app.get('/profile/:id', (req, res) => {
@@ -66,40 +84,15 @@ app.get('/profile/:id', (req, res) => {
 
 app.put('/image', (req, res) => {
   const { id } = req.body;
-
   db('users').where('id', '=', id)
-  .increment('entries', 1)
-  .returning('entries')
-  .then(entries => {
-    res.json((entries[0]));
-  })
-  .catch(err => res.status(400).json('unable to get entries'));
-
-    // res.status(404).json('no such user');
+    .increment('entries', 1)
+    .returning('entries')
+    .then(entries => {
+      res.json((entries[0]));
+    })
+    .catch(err => res.status(400).json('unable to get entries'));
 });
 
 app.listen(3000, () => {
   console.log('App is runing on port 3000!!!')
 });
-
-
-
-
-// // Load hash from your password DB.
-// bcrypt.compare("bacon", hash, function(err, res) {
-//   // res == true
-// });
-// bcrypt.compare("veggies", hash, function(err, res) {
-//   // res = false
-// });
-
-
-/*
-
-/ --> response = this is working
-/signin --> POST = sucess/fail
-/register --> POST = user
-/profile/:userId  --> GET = user
-/image --> PUT --> user
-
-*/
