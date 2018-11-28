@@ -2,23 +2,13 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt-nodejs');
 const cors = require('cors');
-const knex = require('knex');
-
+const { getConnection } = require('./data/connection');
 const register = require('./controllers/register');
 const signin = require('./controllers/signin');
 const profile = require('./controllers/profile');
 const image = require('./controllers/image');
 
-const db = knex({
-  client: 'pg',
-  connection: {
-    host: '127.0.0.1',
-    user: 'tgmarinho',
-    password: '',
-    database: 'smart-brain'
-  }
-});
-
+const db = getConnection();
 
 const app = express();
 
